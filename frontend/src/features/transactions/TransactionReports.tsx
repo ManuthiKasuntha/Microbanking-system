@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
-import { toast } from '../utils/notify';
+import { toast } from '@/utils/notify';
+import { teamApi } from '@/api';
+import { formatCurrency, formatDateTime } from '@/utils/format';
 
 interface BranchTransaction {
   transaction_id: number;
@@ -34,9 +35,7 @@ const TransactionReports: React.FC = () => {
   const fetchTransactionData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('/api/manager/transactions', {
-        params: dateRange
-      });
+      const response = await teamApi.branchTransactions(dateRange);
       setTransactions(response.data.transactions);
       setSummary(response.data.summary);
     } catch (error) {
@@ -116,22 +115,7 @@ const TransactionReports: React.FC = () => {
     setShowDatePicker(false);
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR'
-    }).format(amount);
-  };
 
-  const formatDateTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <div className="transaction-reports">

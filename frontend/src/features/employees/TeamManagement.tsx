@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import { toast } from '../utils/notify';
+import { toast } from '@/utils/notify';
+import { teamApi } from '@/api';
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
 
 interface Agent {
   employee_id: string;
@@ -39,7 +40,7 @@ const TeamManagement: React.FC = () => {
   const fetchAgents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('/api/manager/team/agents');
+      const response = await teamApi.agents();
       setAgents(response.data.agents);
       setAgentPerformance(response.data.performance);
     } catch (error) {
@@ -261,7 +262,7 @@ const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({ agent, performanc
   const fetchAgentTransactions = useCallback(async () => {
     setIsLoadingTransactions(true);
     try {
-      const response = await axios.get(`/api/manager/team/agents/${agent.employee_id}/transactions`);
+      const response = await teamApi.agentTransactions(agent.employee_id);
       setAgentTransactions(response.data.transactions);
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
@@ -274,30 +275,8 @@ const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({ agent, performanc
     fetchAgentTransactions();
   }, [fetchAgentTransactions]);
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR'
-    }).format(amount);
-  };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
-  const formatDateTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   return (
     <>

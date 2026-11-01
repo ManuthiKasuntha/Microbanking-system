@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
-import { collectErrors, validateContact, validateDateOfBirth, validateName, validateNic } from '../utils/validation';
+import { toast } from '@/utils/notify';
+import { ageOn, collectErrors, validateContact, validateDateOfBirth, validateName, validateNic } from '@/utils/validation';
+import { customersApi, getErrorMessage } from '@/api';
 
 interface CustomerFormData {
   first_name: string;
@@ -117,7 +116,7 @@ const CustomerRegistration: React.FC = () => {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/agent/customers/register', formData);
+      const response = await customersApi.register(formData);
       
       setCustomerId(response.data.customer_id);
       setCurrentStep(3);
@@ -143,16 +142,6 @@ const CustomerRegistration: React.FC = () => {
     }
   };
 
-  const calculateAge = (dateString: string): number => {
-    const dob = new Date(dateString);
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const resetForm = () => {
     setFormData({
@@ -174,7 +163,7 @@ const CustomerRegistration: React.FC = () => {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const res = await axios.get('/api/agent/customers');
+        const res = await customersApi.list();
         setEditCustomers(res.data.customers || []);
         setEditFetched(true);
       } catch (e) {
@@ -199,7 +188,7 @@ const CustomerRegistration: React.FC = () => {
   const loadEditDetails = async (id: number) => {
     setEditLoading(true);
     try {
-      const res = await axios.get(`/api/agent/customers/${id}`);
+      const res = await customersApi.getById(id);
       setEditDetails(res.data.customer);
       setEditSelectedId(id);
       setEditErrors({});
@@ -224,7 +213,7 @@ const CustomerRegistration: React.FC = () => {
 
     setEditSaving(true);
     try {
-      await axios.put(`/api/agent/customers/${editDetails.customer_id}/contact`, {
+      await customersApi.updateContact(editDetails.customer_id, {
         contact_no_1: editDetails.contact_no_1,
         contact_no_2: editDetails.contact_no_2,
         address: editDetails.address,
@@ -381,8 +370,8 @@ const CustomerRegistration: React.FC = () => {
                       className={errors.date_of_birth ? 'input-error' : ''}
                     />
                     {errors.date_of_birth && <p className="error-message">{errors.date_of_birth}</p>}
-                    {formData.date_of_birth && !errors.date_of_birth && calculateAge(formData.date_of_birth) >= 0 && (
-                      <p className="help-text">Age: {calculateAge(formData.date_of_birth)} years</p>
+                    {formData.date_of_birth && !errors.date_of_birth && ageOn(formData.date_of_birth) >= 0 && (
+                      <p className="help-text">Age: {ageOn(formData.date_of_birth)} years</p>
                     )}
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect,useCallback} from 'react';
-import axios from 'axios';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { analyticsApi } from '@/api';
+import { formatCurrency, formatDateTime } from '@/utils/format';
 
 const TransactionIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="24" height="24">
@@ -114,7 +115,7 @@ const AgentPerformance: React.FC = () => {
 
   const fetchPerformanceData = useCallback(async () => {
     try {
-      const response = await axios.get('/api/agent/performance');
+      const response = await analyticsApi.performance();
       
       const data = response.data.data || response.data;
       
@@ -135,9 +136,9 @@ const AgentPerformance: React.FC = () => {
   const fetchAnalytics = useCallback(async () => {
     try {
       
-      const typesResponse = await axios.get('/api/agent/analytics/transaction-types');
+      const typesResponse = await analyticsApi.transactionTypes();
       
-      const trendResponse = await axios.get('/api/agent/analytics/transaction-trend');
+      const trendResponse = await analyticsApi.transactionTrend();
       
       setTransactionTypes(typesResponse.data.data || []);
       setTransactionTrend(trendResponse.data.data || []);
@@ -151,21 +152,7 @@ const AgentPerformance: React.FC = () => {
     fetchAnalytics();
   }, [fetchPerformanceData, fetchAnalytics]);
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR'
-    }).format(amount);
-  };
 
-  const formatDateTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   const COLORS = ['#1a365d', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'];
 

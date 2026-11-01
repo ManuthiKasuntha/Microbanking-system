@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast, confirmAction } from '../utils/notify';
+import { toast, confirmAction } from '@/utils/notify';
 import {
   collectErrors, validateContact, validateDateOfBirth, validateName, validateNic, validatePassword, PATTERNS,
-} from '../utils/validation';
+} from '@/utils/validation';
 import EditUserModal, { BranchOption } from './EditUserModal';
+import { branchesApi, employeesApi, getErrorMessage } from '@/api';
+import { formatDate } from '@/utils/format';
+import { getCurrentUser } from '@/features/auth/session';
 
 interface UserFormData {
   role: string;
@@ -64,7 +65,7 @@ const UserManagement: React.FC = () => {
   const [newEmployeeId, setNewEmployeeId] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const currentUserId = getCurrentUser()?.id ?? null;
   const [formData, setFormData] = useState<UserFormData>({
     role: 'Agent',
     username: '',
@@ -88,22 +89,13 @@ const UserManagement: React.FC = () => {
   ];
 
   useEffect(() => {
-    try {
-      const u = localStorage.getItem('user');
-      if (u) {
-        const parsed = JSON.parse(u);
-        if (parsed && typeof parsed.id === 'number') setCurrentUserId(parsed.id);
-      }
-    } catch {
-      setCurrentUserId(null);
-    }
     fetchUsers();
     fetchBranches();
   }, []);
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('/api/admin/users');
+      const response = await employeesApi.list();
       setUsers(response.data.users);
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to load users'));
@@ -112,7 +104,7 @@ const UserManagement: React.FC = () => {
 
   const fetchBranches = async () => {
     try {
-      const response = await axios.get('/api/admin/branches');
+      const response = await branchesApi.list();
       setBranches(response.data.branches);
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to load branches'));
@@ -188,7 +180,7 @@ const UserManagement: React.FC = () => {
   const handleAddUser = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/admin/register', { ...formData, branch_id: Number(formData.branch_id) });
+      const response = await employeesApi.register({ ...formData, branch_id: Number(formData.branch_id) });
       
       setNewEmployeeId(response.data.employee_id);
       setIsSubmitted(true);
@@ -219,7 +211,7 @@ const UserManagement: React.FC = () => {
 
     setTogglingId(user.employee_id);
     try {
-      await axios.patch(`/api/admin/users/${user.employee_id}/status`, { status: targetStatus });
+      await employeesApi.setStatus(user.employee_id, targetStatus);
       toast.success(`User "${user.first_name} ${user.last_name}" ${targetStatus === 'Active' ? 'activated' : 'deactivated'} successfully`);
       fetchUsers();
     } catch (error) {
@@ -244,13 +236,6 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   const getRoleBadgeClass = (role: string) => {
     switch (role.toLowerCase()) {

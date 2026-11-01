@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast, confirmAction } from '../utils/notify';
+import { toast, confirmAction } from '@/utils/notify';
+import { accountsApi, customersApi, getErrorMessage, referenceApi } from '@/api';
+import { ageOn } from '@/utils/validation';
 
 interface Customer {
   customer_id: number;
@@ -137,7 +137,7 @@ const AccountCreation: React.FC = () => {
       return;
     }
     try {
-      const res = await axios.get(`/api/agent/customers/by-nic/${nic}`);
+      const res = await customersApi.getByNic(nic);
       const c: Customer = res.data.customer;
       setCustomerSearchResult(c);
     } catch (err) {
@@ -167,9 +167,9 @@ const AccountCreation: React.FC = () => {
   const fetchData = async () => {
     try {
       const [customersRes, plansRes, branchesRes] = await Promise.all([
-        axios.get('/api/agent/customers'),
-        axios.get('/api/public/saving-plans'),
-        axios.get('/api/public/branches')
+        customersApi.list(),
+        referenceApi.savingPlans(),
+        referenceApi.branches()
       ]);
 
       setCustomers(customersRes.data.customers || []);
@@ -185,7 +185,7 @@ const AccountCreation: React.FC = () => {
 
   const loadExistingAccounts = async () => {
     try {
-      const response = await axios.get('/api/agent/all-accounts');
+      const response = await accountsApi.listAll();
       setExistingAccounts(response.data.accounts);
     } catch (error) {
       console.error('Failed to load existing accounts:', error);
@@ -219,7 +219,7 @@ const AccountCreation: React.FC = () => {
 
     try {
       setIsSearching(true);
-      const res = await axios.get(`/api/agent/accounts/by-nic/${term}`);
+      const res = await accountsApi.listByHolderNic(term);
       setAccountSearchResults(res.data.accounts || []);
     } catch (err) {
       const msg = getErrorMessage(err, 'Failed to search accounts');
@@ -246,8 +246,7 @@ const AccountCreation: React.FC = () => {
   }
 
   try {
-    const response = await axios.post('/api/agent/accounts/deactivate', 
-      { 
+    const response = await accountsApi.close({ 
         account_id: accountId,
         reason: 'Account closure - full balance withdrawal'
       }
@@ -286,7 +285,7 @@ const AccountCreation: React.FC = () => {
 
     try {
       setPlanChange(pc => ({ ...pc, isSubmitting: true }));
-      await axios.post('/api/agent/accounts/change-plan', {
+      await accountsApi.changePlan({
         account_id: account.account_id,
         new_saving_plan_id: planChange.newSavingPlanId,
         reason: planChange.reason.trim(),
@@ -303,16 +302,6 @@ const AccountCreation: React.FC = () => {
     }
   };
 
-  const calculateAge = (dateOfBirth: string): number => {
-    const dob = new Date(dateOfBirth);
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const getAgeRequirement = (planType: string): number => {
     switch (planType.toLowerCase()) {
@@ -338,7 +327,7 @@ const AccountCreation: React.FC = () => {
 
   const getEligiblePlans = (): SavingPlan[] => {
     if (!selectedCustomer || savingPlans.length === 0) return savingPlans;
-    const age = calculateAge(selectedCustomer.date_of_birth);
+    const age = ageOn(selectedCustomer.date_of_birth);
     const singleType = getSinglePlanTypeForAge(age);
     const singlePlan = savingPlans.find(p => p.plan_type === singleType);
     const jointPlan = age >= 18 ? savingPlans.find(p => p.plan_type === 'Joint') : undefined;
@@ -351,7 +340,7 @@ const AccountCreation: React.FC = () => {
     if (!formData.customer_id) {
       newErrors.customer_id = 'Please select a customer';
     } else if (selectedCustomer && selectedPlan) {
-      const customerAge = calculateAge(selectedCustomer.date_of_birth);
+      const customerAge = ageOn(selectedCustomer.date_of_birth);
       const requiredAge = getAgeRequirement(selectedPlan.plan_type);
       
       if (customerAge < requiredAge) {
@@ -386,12 +375,12 @@ const AccountCreation: React.FC = () => {
       }
       
       const underageJointHolder = jointHolders.find(holder => {
-        const holderAge = calculateAge(holder.date_of_birth);
+        const holderAge = ageOn(holder.date_of_birth);
         return holderAge < 18;
       });
       
       if (underageJointHolder) {
-        newErrors.joint_holders = `Joint holder ${underageJointHolder.first_name} ${underageJointHolder.last_name} must be at least 18 years old. Current age: ${calculateAge(underageJointHolder.date_of_birth)}`;
+        newErrors.joint_holders = `Joint holder ${underageJointHolder.first_name} ${underageJointHolder.last_name} must be at least 18 years old. Current age: ${ageOn(underageJointHolder.date_of_birth)}`;
       }
     }
     
@@ -431,7 +420,7 @@ const AccountCreation: React.FC = () => {
         joint_holders: jointHolders.map(holder => holder.customer_id)
       };
 
-      const response = await axios.post('/api/agent/accounts/create', submitData);
+      const response = await accountsApi.open(submitData);
       
       setCreatedAccountId(response.data.account_id);
       setSuccessMessage(`Account created successfully! Account Number: ${response.data.account_id}`);
@@ -513,7 +502,7 @@ const AccountCreation: React.FC = () => {
     setCustomerSearchTerm('');
   setCustomerSearchResult(null);
     setShowCustomerSearch(false);
-    const age = calculateAge(customer.date_of_birth);
+    const age = ageOn(customer.date_of_birth);
     const targetType = getSinglePlanTypeForAge(age);
     const targetPlan = savingPlans.find(p => p.plan_type === targetType) || null;
     if (targetPlan) {
@@ -534,7 +523,7 @@ const AccountCreation: React.FC = () => {
 
   useEffect(() => {
     if (!selectedCustomer || savingPlans.length === 0) return;
-    const age = calculateAge(selectedCustomer.date_of_birth);
+    const age = ageOn(selectedCustomer.date_of_birth);
     const eligible = getEligiblePlans();
     const current = savingPlans.find(p => p.saving_plan_id === formData.saving_plan_id) || null;
     const stillEligible = current && eligible.some(p => p.saving_plan_id === current.saving_plan_id);
@@ -697,7 +686,7 @@ const AccountCreation: React.FC = () => {
                       <span>ID: {selectedCustomer.customer_id} | NIC: {selectedCustomer.nic}</span>
                       {selectedPlan && (
                         <div className="age-validation">
-                          {getAgeBadge(calculateAge(selectedCustomer.date_of_birth), selectedPlan.plan_type)}
+                          {getAgeBadge(ageOn(selectedCustomer.date_of_birth), selectedPlan.plan_type)}
                         </div>
                       )}
                     </div>
@@ -764,7 +753,7 @@ const AccountCreation: React.FC = () => {
                             >
                               <div className="customer-info">
                                 <strong>{customerSearchResult.first_name} {customerSearchResult.last_name}</strong>
-                                <span>ID: {customerSearchResult.customer_id} | NIC: {customerSearchResult.nic} | Age: {calculateAge(customerSearchResult.date_of_birth)}</span>
+                                <span>ID: {customerSearchResult.customer_id} | NIC: {customerSearchResult.nic} | Age: {ageOn(customerSearchResult.date_of_birth)}</span>
                               </div>
                               <button type="button" className="btn btn-primary btn-sm">Select</button>
                             </div>
@@ -870,7 +859,7 @@ const AccountCreation: React.FC = () => {
                           <div className="holder-info">
                             <strong>{holder.first_name} {holder.last_name}</strong>
                             <span>ID: {holder.customer_id} | NIC: {holder.nic}</span>
-                            {getAgeBadge(calculateAge(holder.date_of_birth), 'Joint')}
+                            {getAgeBadge(ageOn(holder.date_of_birth), 'Joint')}
                           </div>
                           <button
                             type="button"
@@ -923,15 +912,15 @@ const AccountCreation: React.FC = () => {
                                 <div className="customer-info">
                                   <strong>{customer.first_name} {customer.last_name}</strong>
                                   <span>ID: {customer.customer_id} | NIC: {customer.nic}</span>
-                                  {getAgeBadge(calculateAge(customer.date_of_birth), 'Joint')}
+                                  {getAgeBadge(ageOn(customer.date_of_birth), 'Joint')}
                                 </div>
                                 <button
                                   type="button"
                                   className="btn btn-primary btn-sm"
                                   onClick={() => addJointHolder(customer)}
-                                  disabled={calculateAge(customer.date_of_birth) < 18}
+                                  disabled={ageOn(customer.date_of_birth) < 18}
                                 >
-                                  {calculateAge(customer.date_of_birth) < 18 ? 'Under 18' : 'Add'}
+                                  {ageOn(customer.date_of_birth) < 18 ? 'Under 18' : 'Add'}
                                 </button>
                               </div>
                             ))}
@@ -1081,7 +1070,7 @@ const AccountCreation: React.FC = () => {
                       </div>
                       <div className="detail-row">
                         <span className="detail-label">Age:</span>
-                        <span className="detail-value">{calculateAge(selectedCustomer.date_of_birth)} years</span>
+                        <span className="detail-value">{ageOn(selectedCustomer.date_of_birth)} years</span>
                       </div>
                     </div>
                   )}

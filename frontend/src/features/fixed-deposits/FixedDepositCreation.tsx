@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast, confirmAction } from '../utils/notify';
+import { toast, confirmAction } from '@/utils/notify';
+import { accountsApi, customersApi, fixedDepositsApi, getErrorMessage, referenceApi } from '@/api';
+import { ageOn } from '@/utils/validation';
+import { usePersistentState } from '@/hooks/usePersistentState';
 
 interface Customer {
   customer_id: number;
@@ -66,10 +67,11 @@ const FixedDepositCreation: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<FdPlan | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'create' | 'manage'>(() => {
-    const saved = localStorage.getItem('fixedDepositCreation.activeTab') as 'create' | 'manage' | null;
-    return saved === 'manage' ? 'manage' : 'create';
-  });
+  const [activeTab, setActiveTab] = usePersistentState<'create' | 'manage'>(
+    'fixedDepositCreation.activeTab',
+    'create',
+    (saved) => saved === 'manage'
+  );
   const [existingFDs, setExistingFDs] = useState<ExistingFD[]>([]);
   const [searchFdId, setSearchFdId] = useState('');
   const [searchResults, setSearchResults] = useState<ExistingFD[]>([]);
@@ -114,10 +116,6 @@ const FixedDepositCreation: React.FC = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    localStorage.setItem('fixedDepositCreation.activeTab', activeTab);
-  }, [activeTab]);
-
-  useEffect(() => {
     if (hasSearched && !searchFdId.trim()) {
       setSearchResults([]);
     }
@@ -133,7 +131,7 @@ const FixedDepositCreation: React.FC = () => {
     }
 
     try {
-      const res = await axios.get(`/api/agent/customers/by-nic/${nic}`);
+      const res = await customersApi.getByNic(nic);
       const c: Customer = res.data.customer;
       setCustomerSearchResult(c);
     } catch (err) {
@@ -146,8 +144,8 @@ const FixedDepositCreation: React.FC = () => {
   const fetchData = async () => {
     try {
       const [plansRes, accountsRes] = await Promise.all([
-        axios.get('/api/public/fd-plans'),
-        axios.get('/api/agent/accounts-with-fd')
+        referenceApi.fdPlans(),
+        accountsApi.listEligibleForFd()
       ]);
 
       setFdPlans(plansRes.data.fd_plans || plansRes.data || []);
@@ -162,7 +160,7 @@ const FixedDepositCreation: React.FC = () => {
 
   const loadExistingFDs = async () => {
     try {
-      const response = await axios.get('/api/agent/fixed-deposits');
+      const response = await fixedDepositsApi.list();
       setExistingFDs(response.data.fixed_deposits);
     } catch (error) {
       console.error('Failed to load existing FDs:', error);
@@ -196,7 +194,7 @@ const FixedDepositCreation: React.FC = () => {
 
     try {
       setIsSearching(true);
-      const response = await axios.get(`/api/agent/fixed-deposits/by-nic/${term}`);
+      const response = await fixedDepositsApi.listByHolderNic(term);
       setSearchResults(response.data.fixed_deposits || []);
     } catch (error) {
       const msg = getErrorMessage(error, 'Failed to search fixed deposits');
@@ -219,9 +217,7 @@ const FixedDepositCreation: React.FC = () => {
   }
 
   try {
-    const response = await axios.post('/api/agent/fixed-deposits/deactivate', 
-      { fd_id: fdId }
-    );
+    const response = await fixedDepositsApi.close(fdId);
     
     toast.success(response.data.message);
     loadExistingFDs();
@@ -231,16 +227,6 @@ const FixedDepositCreation: React.FC = () => {
   }
   };
 
-  const calculateAge = (dateOfBirth: string): number => {
-    const dob = new Date(dateOfBirth);
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const getEligibleAccounts = (): Account[] => {
     if (!selectedCustomer) return [];
@@ -260,7 +246,7 @@ const FixedDepositCreation: React.FC = () => {
     
     if (!formData.customer_id) {
       newErrors.customer_id = 'Please select a customer';
-    } else if (selectedCustomer && calculateAge(selectedCustomer.date_of_birth) < 18) {
+    } else if (selectedCustomer && ageOn(selectedCustomer.date_of_birth) < 18) {
       newErrors.customer_id = 'Customer must be at least 18 years old for Fixed Deposit';
     }
     
@@ -374,7 +360,7 @@ const FixedDepositCreation: React.FC = () => {
         principal_amount: parseFloat(formData.principal_amount.toString())
       };
 
-      const response = await axios.post('/api/agent/fixed-deposits/create', submitData);
+      const response = await fixedDepositsApi.open(submitData);
       
       setCreatedFdId(response.data.fd_id);
       setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_id}`);
@@ -584,7 +570,7 @@ const FixedDepositCreation: React.FC = () => {
                     <div className="selected-customer-card">
                       <div className="customer-info">
                         <strong>{selectedCustomer.first_name} {selectedCustomer.last_name}</strong>
-                        <span>ID: {selectedCustomer.customer_id} | NIC: {selectedCustomer.nic} | Age: {calculateAge(selectedCustomer.date_of_birth)}</span>
+                        <span>ID: {selectedCustomer.customer_id} | NIC: {selectedCustomer.nic} | Age: {ageOn(selectedCustomer.date_of_birth)}</span>
                       </div>
                       <button
                         type="button"
@@ -649,7 +635,7 @@ const FixedDepositCreation: React.FC = () => {
                                 >
                                   <div className="customer-info">
                                     <strong>{customerSearchResult.first_name} {customerSearchResult.last_name}</strong>
-                                    <span>ID: {customerSearchResult.customer_id} | NIC: {customerSearchResult.nic} | Age: {calculateAge(customerSearchResult.date_of_birth)}</span>
+                                    <span>ID: {customerSearchResult.customer_id} | NIC: {customerSearchResult.nic} | Age: {ageOn(customerSearchResult.date_of_birth)}</span>
                                   </div>
                                   <button
                                     type="button"
@@ -718,7 +704,7 @@ const FixedDepositCreation: React.FC = () => {
                   <p><strong>Name:</strong> {selectedCustomer.first_name} {selectedCustomer.last_name}</p>
                   <p><strong>Customer ID:</strong> {selectedCustomer.customer_id}</p>
                   <p><strong>NIC:</strong> {selectedCustomer.nic}</p>
-                  <p><strong>Age:</strong> {calculateAge(selectedCustomer.date_of_birth)} years</p>
+                  <p><strong>Age:</strong> {ageOn(selectedCustomer.date_of_birth)} years</p>
                 </div>
               )}
 
@@ -919,7 +905,7 @@ const FixedDepositCreation: React.FC = () => {
                       </div>
                       <div className="detail-row">
                         <span className="detail-label">Age:</span>
-                        <span className="detail-value">{calculateAge(selectedCustomer.date_of_birth)} years</span>
+                        <span className="detail-value">{ageOn(selectedCustomer.date_of_birth)} years</span>
                       </div>
                     </div>
                   )}

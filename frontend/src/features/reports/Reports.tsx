@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import axios from 'axios';
-import { toast } from '../utils/notify';
+import { reportsApi } from '@/api';
+import { toast } from '@/utils/notify';
+import { formatCurrency } from '@/utils/format';
 
 interface AgentTransactionReport {
   employee_id: number;
@@ -148,13 +149,6 @@ const Reports: React.FC = () => {
     return isNaN(n) ? 0 : n;
   }, []);
 
-  const formatCurrency = useCallback((value: number): string => {
-    return `LKR ${value.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
-  }, []);
-
   const daysUntil = (dateStr?: string | null): number | null => {
     if (!dateStr) return null;
     const target = new Date(dateStr);
@@ -204,168 +198,49 @@ const Reports: React.FC = () => {
       netFlow: getTotal(customerActivity, 'net_balance'),
     }
   }), [agentTransactions, accountSummaries, activeFDs, interestSummary, customerActivity, getTotal]);
-  const loadAgentTransactions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      
-      const response = await axios.get('/api/admin/reports/agent-transactions', {
-        params: dateRange,
-        timeout: 30000
-      });
-      
-      const data = response.data?.data || response.data;
-      
-      if (data && Array.isArray(data)) {
-        setAgentTransactions(data);
-      } else {
-        setAgentTransactions([]);
-        console.warn('Unexpected response format:', response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load agent transactions report', error);
-      setError('Failed to load agent transactions report. Please try again.');
-      setAgentTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange]);
 
-  const loadAccountSummaries = useCallback(async () => {
+  // All five reports share the same loading and error handling; only the request and target state differ
+  const loadReport = useCallback(async <T,>(
+    fetchReport: () => Promise<{ data: { data?: T[] } }>,
+    setRows: (rows: T[]) => void,
+    name: string
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      
-      const response = await axios.get('/api/admin/reports/account-summaries', {
-        params: dateRange,
-        timeout: 30000
-      });
-      
-      const data = response.data?.data || response.data;
-      
-      if (data && Array.isArray(data)) {
-        setAccountSummaries(data);
-      } else {
-        setAccountSummaries([]);
-        console.warn('Unexpected response format:', response.data);
-      }
+      const response = await fetchReport();
+      setRows(Array.isArray(response.data?.data) ? response.data.data : []);
     } catch (error) {
-      console.error('Failed to load account summaries report', error);
-      setError('Failed to load account summaries report. Please try again.');
-      setAccountSummaries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange]);
-
-  const loadActiveFDs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      
-      const response = await axios.get('/api/admin/reports/active-fds', {
-        timeout: 30000
-      });
-      
-      const data = response.data?.data || response.data;
-      
-      if (data && Array.isArray(data)) {
-        setActiveFDs(data);
-      } else {
-        setActiveFDs([]);
-        console.warn('Unexpected response format:', response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load active FDs report', error);
-      setError('Failed to load active FDs report. Please try again.');
-      setActiveFDs([]);
+      console.error(`Failed to load ${name} report`, error);
+      setError(`Failed to load ${name} report. Please try again.`);
+      setRows([]);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const loadInterestSummary = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      
-      const response = await axios.get('/api/admin/reports/interest-summary', {
-        params: { 
-          month: new Date().getMonth() + 1, 
-          year: new Date().getFullYear() 
-        },
-        timeout: 30000
-      });
-      
-      const data = response.data?.data || response.data;
-      
-      if (data && Array.isArray(data)) {
-        setInterestSummary(data);
-      } else if (response.data?.status === 'success' && Array.isArray(response.data?.data)) {
-        setInterestSummary(response.data.data);
-      } else {
-        setInterestSummary([]);
-        console.warn('Unexpected response format:', response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load interest summary report', error);
-      setError('Failed to load interest summary report. Please try again.');
-      setInterestSummary([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadCustomerActivity = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      
-      const response = await axios.get('/api/admin/reports/customer-activity', {
-        params: dateRange,
-        timeout: 30000
-      });
-      
-      const data = response.data?.data || response.data;
-      
-      if (data && Array.isArray(data)) {
-        setCustomerActivity(data);
-      } else if (response.data?.status === 'success' && Array.isArray(response.data?.data)) {
-        setCustomerActivity(response.data.data);
-      } else {
-        setCustomerActivity([]);
-        console.warn('Unexpected response format:', response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load customer activity report', error);
-      setError('Failed to load customer activity report. Please try again.');
-      setCustomerActivity([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange]);
 
   useEffect(() => {
+    const now = new Date();
     switch (activeReport) {
       case 'agent-transactions':
-        loadAgentTransactions();
+        loadReport(() => reportsApi.agentTransactions(dateRange), setAgentTransactions, 'agent transactions');
         break;
       case 'account-summaries':
-        loadAccountSummaries();
+        loadReport(() => reportsApi.accountSummaries(dateRange), setAccountSummaries, 'account summaries');
         break;
       case 'active-fds':
-        loadActiveFDs();
+        loadReport(() => reportsApi.activeFixedDeposits(), setActiveFDs, 'active FDs');
         break;
       case 'interest-summary':
-        loadInterestSummary();
+        loadReport(() => reportsApi.interestSummary(now.getMonth() + 1, now.getFullYear()), setInterestSummary, 'interest summary');
         break;
       case 'customer-activity':
-        loadCustomerActivity();
+        loadReport(() => reportsApi.customerActivity(dateRange), setCustomerActivity, 'customer activity');
         break;
       default:
         break;
     }
-  }, [activeReport, dateRange, loadAgentTransactions, loadAccountSummaries, loadActiveFDs, loadInterestSummary, loadCustomerActivity]);
+  }, [activeReport, dateRange, loadReport]);
  
   const handlePrint = () => {
     const printContent = reportContentRef.current;

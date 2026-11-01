@@ -1,24 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
-import bankLogo from '../assets/imgs/B_Trust_logo_blue.png';
+import { toast } from '@/utils/notify';
+import bankLogo from '@/assets/imgs/B_Trust_logo_blue.png';
+import { authApi, getErrorMessage } from '@/api';
+import { FormErrors } from '@/utils/validation';
+import { consumeSessionExpired, startSession } from './session';
 
 interface LoginData {
   username: string;
   password: string;
 }
 
-interface LoginRegisterProps {
+interface LoginPageProps {
   onLoginSuccess: () => void;
 }
 
-interface FormErrors {
-  [key: string]: string;
-}
-
-const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [authError, setAuthError] = useState<string>('');
@@ -30,8 +27,7 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (sessionStorage.getItem('sessionExpired')) {
-      sessionStorage.removeItem('sessionExpired');
+    if (consumeSessionExpired()) {
       toast.info('Your session has expired. Please sign in again.');
     }
   }, []);
@@ -57,16 +53,12 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
     
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/auth/login', {
+      const response = await authApi.login({
         username: loginData.username,
         password: loginData.password
       });
       const { token, user } = response.data;
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      // Clear saved dashboard tabs so role defaults apply
-      ['adminDashboard.activeSection', 'agentDashboard.activeSection', 'managerDashboard.activeSection',
-        'transactionProcessing.activeTab', 'fixedDepositCreation.activeTab'].forEach((key) => localStorage.removeItem(key));
+      startSession(token, user);
 
       setAuthError('');
       onLoginSuccess();
@@ -190,4 +182,4 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
   );
 };
 
-export default LoginRegister;
+export default LoginPage;

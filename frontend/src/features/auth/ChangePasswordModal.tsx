@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
-import { collectErrors, FormErrors, validatePassword } from '../utils/validation';
+import { toast } from '@/utils/notify';
+import { collectErrors, FormErrors, validatePassword } from '@/utils/validation';
+import { authApi, getErrorMessage } from '@/api';
 
 interface Props {
   onClose: () => void;
@@ -37,7 +36,7 @@ const ChangePasswordModal: React.FC<Props> = ({ onClose }) => {
     if (!validate()) return;
     setSaving(true);
     try {
-      await axios.put('/api/auth/change-password', {
+      await authApi.changePassword({
         current_password: form.current_password,
         new_password: form.new_password,
       });

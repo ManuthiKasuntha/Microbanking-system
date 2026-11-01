@@ -1,27 +1,26 @@
 import axios, { AxiosError } from 'axios';
+import { endSession, getToken, markSessionExpired } from '@/features/auth/session';
 
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
+// The single HTTP client for the app; feature code calls the typed functions in this folder instead
+export const http = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL });
 
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+http.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 // An expired or revoked token ends the session everywhere, not just on the request that noticed it.
 // Only react when the rejected request used the *current* token, so a late response from a previous
 // session can't log out a user who has just signed in again.
-axios.interceptors.response.use(
+http.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const sentWithCurrentToken = token && error.config?.headers?.Authorization === `Bearer ${token}`;
     if (error.response?.status === 401 && sentWithCurrentToken) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.setItem('sessionExpired', '1');
+      endSession();
+      markSessionExpired();
       window.location.assign('/');
     }
     return Promise.reject(error);

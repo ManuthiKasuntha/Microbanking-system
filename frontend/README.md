@@ -27,8 +27,15 @@ Restart the dev server after changing `.env`.
 
 ## Structure
 
-- `src/api/client.ts`: Axios defaults (base URL, bearer token, session-expiry handling) and `getErrorMessage`
-- `src/utils/validation.ts`: form rules shared by every screen, mirroring the backend and database rules
-- `src/utils/notify.ts`: `toast.success/error/info` and `confirmAction()` usable from any component
-- `src/components/ui/`: `Toaster`, `ConfirmDialog`, `ErrorBoundary`
-- `src/components/Dashboard.tsx`: role-based layout; each section is lazy-loaded as its own chunk
+| Folder | Contents |
+|--------|----------|
+| `src/app/` | Router and app shell |
+| `src/api/` | `http.ts` (axios instance: base URL, bearer token, session-expiry handling, `getErrorMessage`) and `index.ts` (one API object per backend domain; the only place URLs appear) |
+| `src/features/<domain>/` | Screens for one domain: `auth`, `dashboard`, `customers`, `accounts`, `transactions`, `fixed-deposits`, `employees`, `branches`, `reports`, `interest` |
+| `src/features/auth/session.ts` | Reading and writing the stored login (token + user) |
+| `src/components/` | Shared UI: `Toaster`, `ConfirmDialog`, `ErrorBoundary`, `Footer` |
+| `src/hooks/` | `usePersistentState`: state that survives a reload (saved tabs, sidebar) |
+| `src/utils/` | `validation.ts` (form rules mirroring the backend and database), `format.ts` (currency/date), `notify.ts` (toasts and `confirmAction()`) |
+
+Import shared code with the `@/` alias, e.g. `import { formatCurrency } from '@/utils/format'`.
+The dashboard lazy-loads each section as its own chunk.

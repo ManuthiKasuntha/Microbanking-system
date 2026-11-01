@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
+import { toast } from '@/utils/notify';
+import { getErrorMessage, interestApi } from '@/api';
 
-interface FDInterestSummary {
+interface SavingsInterestSummary {
   monthly_interest: number;
-  active_fds: {
+  active_savings_accounts: {
     count: number;
-    total_value: number;
+    total_balance: number;
   };
   recent_periods: Array<{
     period_start: string;
@@ -17,12 +16,12 @@ interface FDInterestSummary {
   next_scheduled_run: string;
 }
 
-const FDInterestManagement: React.FC = () => {
-  const [summary, setSummary] = useState<FDInterestSummary | null>(null);
+const SavingsInterestManagement: React.FC = () => {
+  const [summary, setSummary] = useState<SavingsInterestSummary | null>(null);
 
   const loadSummary = async () => {
     try {
-      const response = await axios.get('/api/admin/fd-interest/summary');
+      const response = await interestApi.savingsSummary();
       setSummary(response.data);
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to load interest summary'));
@@ -34,8 +33,8 @@ const FDInterestManagement: React.FC = () => {
   }, []);
 
   return (
-    <div className="fd-interest-management">
-      <h4>Fixed Deposit Interest Management</h4>
+    <div className="savings-interest-management">
+      <h4>Savings Account Interest Management</h4>
       
       <div className="auto-system-info">
         <div className="info-card success">
@@ -45,7 +44,7 @@ const FDInterestManagement: React.FC = () => {
             </svg>
             Automatic System Status
           </h5>
-          <p><strong>Schedule:</strong> Daily at 3:00 AM (per-account 30-day cycles)</p>
+          <p><strong>Schedule:</strong> Daily at 3:30 AM (per-account 30-day cycles)</p>
           <p><strong>Action:</strong> Fully automatic per-account calculation AND crediting</p>
           <p><strong>Status:</strong> <span className="status-active">ACTIVE</span></p>
         </div>
@@ -53,12 +52,12 @@ const FDInterestManagement: React.FC = () => {
         {summary && (
           <div className="summary-grid">
             <div className="summary-item">
-              <span>Active Fixed Deposits:</span>
-              <strong>{summary.active_fds.count}</strong>
+              <span>Active Savings Accounts:</span>
+              <strong>{summary.active_savings_accounts.count}</strong>
             </div>
             <div className="summary-item">
-              <span>Total FD Value:</span>
-              <strong>LKR {summary.active_fds.total_value.toLocaleString()}</strong>
+              <span>Total Savings Balance:</span>
+              <strong>LKR {summary.active_savings_accounts.total_balance.toLocaleString()}</strong>
             </div>
             <div className="summary-item">
               <span>Interest This Month:</span>
@@ -109,4 +108,4 @@ const FDInterestManagement: React.FC = () => {
   );
 };
 
-export default FDInterestManagement;
+export default SavingsInterestManagement;

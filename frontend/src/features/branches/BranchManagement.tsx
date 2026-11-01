@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast, confirmAction } from '../utils/notify';
-import { validateContact } from '../utils/validation';
+import { toast, confirmAction } from '@/utils/notify';
+import { validateContact } from '@/utils/validation';
+import { branchesApi, getErrorMessage } from '@/api';
+import { formatDate } from '@/utils/format';
 
 interface Branch {
   branch_id: number;
@@ -45,7 +45,7 @@ const BranchManagement: React.FC = () => {
 
 const fetchBranches = async () => {
   try {
-    const result = await axios.get('/api/admin/branches');
+    const result = await branchesApi.list();
     setBranches(result.data.branches);
   } catch (error) {
     console.error('Failed to fetch branches:', error);
@@ -83,10 +83,10 @@ const fetchBranches = async () => {
     setIsLoading(true);
     try {
       if (editingBranchId) {
-        await axios.put(`/api/admin/branches/${editingBranchId}`, formData);
+        await branchesApi.update(editingBranchId, formData);
         toast.success(`Branch "${formData.name}" updated successfully`);
       } else {
-        await axios.post('/api/admin/branches', formData);
+        await branchesApi.create(formData);
         toast.success(`Branch "${formData.name}" created successfully`);
       }
       clearForm();
@@ -105,7 +105,7 @@ const fetchBranches = async () => {
 
     setIsDeleting(branchId);
     try {
-      await axios.delete(`/api/admin/branches/${branchId}`);
+      await branchesApi.remove(branchId);
       
       toast.success(`Branch "${branchName}" deleted successfully`);
       fetchBranches();
@@ -138,13 +138,6 @@ const fetchBranches = async () => {
     setIsAddingBranch(false);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   const filteredBranches = branches.filter((b) => {
     const q = searchTerm.trim().toLowerCase();

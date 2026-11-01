@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
-import { collectErrors, FormErrors, validateContact, validateName } from '../utils/validation';
+import { toast } from '@/utils/notify';
+import { collectErrors, FormErrors, validateContact, validateName } from '@/utils/validation';
+import { employeesApi, getErrorMessage } from '@/api';
 
 export interface EditableUser {
   employee_id: number;
@@ -65,7 +64,7 @@ const EditUserModal: React.FC<Props> = ({ user, branches, isSelf, onClose, onSav
 
     setSaving(true);
     try {
-      await axios.put(`/api/admin/users/${user.employee_id}`, form);
+      await employeesApi.update(user.employee_id, form);
       toast.success(`${form.first_name} ${form.last_name} updated successfully`);
       onSaved();
       onClose();

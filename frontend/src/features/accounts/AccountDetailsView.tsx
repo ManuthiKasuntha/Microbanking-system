@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
+import { toast } from '@/utils/notify';
+import { accountsApi, getErrorMessage } from '@/api';
+import { formatCurrency, formatDate } from '@/utils/format';
+import { ageOn } from '@/utils/validation';
 
 interface Account {
   account_id: number;
@@ -87,7 +88,7 @@ const AccountDetailsView: React.FC = () => {
 
     if (isTwelveDigitNic || isOldNic) {
       try {
-        const res = await axios.get(`/api/agent/accounts/by-nic/${term}`);
+        const res = await accountsApi.listByHolderNic(term);
         setSearchResults(res.data.accounts || []);
       } catch (err) {
         const msg = getErrorMessage(err, 'Failed to search accounts');
@@ -102,7 +103,7 @@ const AccountDetailsView: React.FC = () => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await axios.get('/api/agent/all-accounts');
+      const response = await accountsApi.listAll();
 
       setAccounts(response.data.accounts);
     } catch (error) {
@@ -116,7 +117,7 @@ const AccountDetailsView: React.FC = () => {
   const fetchAccountDetails = async (accountId: number) => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`/api/agent/accounts/${accountId}/details`);
+      const response = await accountsApi.getDetails(accountId);
 
       setSelectedAccount(response.data.account);
     } catch (error) {
@@ -127,16 +128,6 @@ const AccountDetailsView: React.FC = () => {
     }
   };
 
-  const calculateAge = (dateOfBirth: string): number => {
-    const dob = new Date(dateOfBirth);
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const getStatusBadge = (status: string) => {
     const statusColors = {
@@ -161,19 +152,9 @@ const AccountDetailsView: React.FC = () => {
     return <span className={`badge badge-${color}`}>{planType}</span>;
   };
 
-  const formatCurrency = (amount: number): string => {
-    return `LKR ${amount.toLocaleString()}`;
-  };
 
   const isCredit = (type: string) => type === 'Deposit' || type === 'Interest';
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
 
   if (isLoadingAccounts) {
     return (
@@ -286,7 +267,7 @@ const AccountDetailsView: React.FC = () => {
                         </div>
                         <div className="account-detail">
                           <span>Open Date:</span>
-                          <span>{formatDate(account.open_date)}</span>
+                          <span>{formatDate(account.open_date, 'long')}</span>
                         </div>
                       </div>
                     </div>
@@ -330,7 +311,7 @@ const AccountDetailsView: React.FC = () => {
                           </div>
                           <div className="detail-item">
                             <span>Open Date:</span>
-                            <strong>{formatDate(selectedAccount.open_date)}</strong>
+                            <strong>{formatDate(selectedAccount.open_date, 'long')}</strong>
                           </div>
                           <div className="detail-item">
                             <span>Branch:</span>
@@ -361,7 +342,7 @@ const AccountDetailsView: React.FC = () => {
                                 <div className="customer-details">
                                   <span>ID: {customer.customer_id}</span>
                                   <span>NIC: {customer.nic}</span>
-                                  <span>Age: {calculateAge(customer.date_of_birth)} years</span>
+                                  <span>Age: {ageOn(customer.date_of_birth)} years</span>
                                 </div>
                               </div>
                             </div>
@@ -387,7 +368,7 @@ const AccountDetailsView: React.FC = () => {
                               <tbody>
                                 {selectedAccount.transactions.map(transaction => (
                                   <tr key={transaction.transaction_id}>
-                                    <td>{formatDate(transaction.time)}</td>
+                                    <td>{formatDate(transaction.time, 'long')}</td>
                                     <td>
                                       <span className={`transaction-type ${transaction.transaction_type.toLowerCase()}`}>
                                         {transaction.transaction_type}

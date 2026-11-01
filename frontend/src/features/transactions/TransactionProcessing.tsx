@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { getErrorMessage } from '../api/client';
-import { toast } from '../utils/notify';
+import { toast } from '@/utils/notify';
+import { accountsApi, getErrorMessage, referenceApi, transactionsApi } from '@/api';
+import { formatCurrency, formatDateTime } from '@/utils/format';
+import { usePersistentState } from '@/hooks/usePersistentState';
 
 interface TransactionFormData {
   account_id: number;
@@ -42,10 +43,11 @@ interface SavingPlan {
 }
 
 const TransactionProcessing: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'process' | 'history'>(() => {
-    const saved = localStorage.getItem('transactionProcessing.activeTab') as 'process' | 'history' | null;
-    return saved === 'history' ? 'history' : 'process';
-  });
+  const [activeTab, setActiveTab] = usePersistentState<'process' | 'history'>(
+    'transactionProcessing.activeTab',
+    'process',
+    (saved) => saved === 'history'
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -69,14 +71,10 @@ const TransactionProcessing: React.FC = () => {
     fetchSavingPlans();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('transactionProcessing.activeTab', activeTab);
-  }, [activeTab]);
-
   const fetchRecentTransactions = async () => {
     setIsLoadingHistory(true);
     try {
-      const response = await axios.get('/api/agent/transactions/recent');
+      const response = await transactionsApi.listRecent();
       setTransactions(response.data.transactions);
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
@@ -88,7 +86,7 @@ const TransactionProcessing: React.FC = () => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await axios.get('/api/agent/all-accounts');
+      const response = await accountsApi.listAll();
       setAccounts(response.data.accounts);
     } catch (error) {
       console.error('Failed to fetch accounts:', error);
@@ -97,7 +95,7 @@ const TransactionProcessing: React.FC = () => {
 
   const fetchSavingPlans = async () => {
     try {
-      const response = await axios.get('/api/public/saving-plans');
+      const response = await referenceApi.savingPlans();
       setSavingPlans(response.data.saving_plans || response.data || []);
     } catch (error) {
       console.error('Failed to fetch saving plans:', error);
@@ -200,7 +198,7 @@ const TransactionProcessing: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/agent/transactions/process', {
+      const response = await transactionsApi.process({
         ...formData,
         amount: parseAmount(formData.amount)
       });
@@ -239,22 +237,7 @@ const TransactionProcessing: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR'
-    }).format(amount);
-  };
 
-  const formatDateTime = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const getTransactionTypeClass = (type: string): string => {
     switch (type) {

@@ -1,107 +1,64 @@
-import React, { Suspense, lazy, useEffect, useState, useCallback } from 'react';
+import React, { Suspense, lazy, useEffect, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Footer from './Footer';
-import ChangePasswordModal from './ChangePasswordModal';
-import ErrorBoundary from './ui/ErrorBoundary';
+import Footer from '@/components/layout/Footer';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import ChangePasswordModal from '@/features/auth/ChangePasswordModal';
+import { endSession, getCurrentUser, hasValidSession, SessionUser } from '@/features/auth/session';
+import { usePersistentFlag, usePersistentState } from '@/hooks/usePersistentState';
+import bankLogo from '@/assets/imgs/B_Trust_logo_white.png';
 
 // Each section is its own bundle chunk, downloaded only when a user opens it
-const CustomerRegistration = lazy(() => import('./CustomerRegistration'));
-const AccountCreation = lazy(() => import('./AccountCreation'));
-const FixedDepositCreation = lazy(() => import('./FixedDepositCreation'));
-const AccountDetailsView = lazy(() => import('./AccountDetailsView'));
-const TransactionProcessing = lazy(() => import('./TransactionProcessing'));
-const AgentPerformance = lazy(() => import('./AgentPerformance'));
-const UserManagement = lazy(() => import('./UserManagement'));
-const BranchManagement = lazy(() => import('./BranchManagement'));
-const FDInterestManagement = lazy(() => import('./FDInterestManagement'));
-const SavingsInterestManagement = lazy(() => import('./SavingsInterestManagement'));
-const Reports = lazy(() => import('./Reports'));
-const TeamManagement = lazy(() => import('./TeamManagement'));
-const TransactionReports = lazy(() => import('./TransactionReports'));
-const CustomerAccounts = lazy(() => import('./CustomerAccounts'));
-import bankLogo from '../assets/imgs/B_Trust_logo_white.png';
+const CustomerRegistration = lazy(() => import('@/features/customers/CustomerRegistration'));
+const CustomerAccounts = lazy(() => import('@/features/customers/CustomerAccounts'));
+const AccountCreation = lazy(() => import('@/features/accounts/AccountCreation'));
+const AccountDetailsView = lazy(() => import('@/features/accounts/AccountDetailsView'));
+const FixedDepositCreation = lazy(() => import('@/features/fixed-deposits/FixedDepositCreation'));
+const TransactionProcessing = lazy(() => import('@/features/transactions/TransactionProcessing'));
+const TransactionReports = lazy(() => import('@/features/transactions/TransactionReports'));
+const UserManagement = lazy(() => import('@/features/employees/UserManagement'));
+const TeamManagement = lazy(() => import('@/features/employees/TeamManagement'));
+const BranchManagement = lazy(() => import('@/features/branches/BranchManagement'));
+const Reports = lazy(() => import('@/features/reports/Reports'));
+const AgentPerformance = lazy(() => import('@/features/reports/AgentPerformance'));
+const FDInterestManagement = lazy(() => import('@/features/interest/FDInterestManagement'));
+const SavingsInterestManagement = lazy(() => import('@/features/interest/SavingsInterestManagement'));
 
 interface DashboardProps {
   onLogout: () => void;
 }
 
-interface User {
-  id: string;
-  username: string;
-  first_name: string;
-  last_name: string;
-  role: string;
-}
+const SIGNED_OUT_USER: SessionUser = { id: 0, username: '', first_name: '', last_name: '', role: 'Agent' };
+const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    const saved = localStorage.getItem('dashboard.sidebarCollapsed');
-    return saved === 'true';
-  });
+  const [sidebarCollapsed, setSidebarCollapsed] = usePersistentFlag('dashboard.sidebarCollapsed');
   const [showChangePassword, setShowChangePassword] = useState(false);
-  
-  const userData = localStorage.getItem('user');
-  const user: User = userData ? JSON.parse(userData) : { 
-    id: '', 
-    username: '', 
-    first_name: '', 
-    last_name: '', 
-    role: '' 
-  };
+  const user = getCurrentUser() ?? SIGNED_OUT_USER;
 
-  const [agentActiveSection, setAgentActiveSection] = useState<string>(() => {
-    const saved = localStorage.getItem('agentDashboard.activeSection');
-    return saved || 'performance';
-  });
-
-  const [adminActiveSection, setAdminActiveSection] = useState<string>(() => {
-    const saved = localStorage.getItem('adminDashboard.activeSection');
-    return saved || 'users';
-  });
-
-  const [managerActiveSection, setManagerActiveSection] = useState<string>(() => {
-    const saved = localStorage.getItem('managerDashboard.activeSection');
-    // 'overview' was removed; fall back to 'customers'
-    if (!saved || saved === 'overview') return 'customers';
-    return saved;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('agentDashboard.activeSection', agentActiveSection);
-  }, [agentActiveSection]);
-
-  useEffect(() => {
-    localStorage.setItem('adminDashboard.activeSection', adminActiveSection);
-  }, [adminActiveSection]);
-
-  useEffect(() => {
-    localStorage.setItem('managerDashboard.activeSection', managerActiveSection);
-  }, [managerActiveSection]);
+  const [agentActiveSection, setAgentActiveSection] = usePersistentState<string>('agentDashboard.activeSection', 'performance');
+  const [adminActiveSection, setAdminActiveSection] = usePersistentState<string>('adminDashboard.activeSection', 'users');
+  // 'overview' was removed from the manager menu, so an old saved value falls back to 'customers'
+  const [managerActiveSection, setManagerActiveSection] = usePersistentState<string>(
+    'managerDashboard.activeSection',
+    'customers',
+    (saved) => saved !== 'overview'
+  );
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    endSession();
     onLogout();
     navigate('/');
   }, [onLogout, navigate]);
 
   useEffect(() => {
-    const checkToken = () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        handleLogout();
-      }
+    const checkSession = () => {
+      if (!hasValidSession()) handleLogout();
     };
-    
-    checkToken();
-    const interval = setInterval(checkToken, 5 * 60 * 1000);
+    checkSession();
+    const interval = setInterval(checkSession, SESSION_CHECK_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [handleLogout]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboard.sidebarCollapsed', sidebarCollapsed.toString());
-  }, [sidebarCollapsed]);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);

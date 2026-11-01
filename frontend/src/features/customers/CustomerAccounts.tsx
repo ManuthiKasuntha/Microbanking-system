@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from '../utils/notify';
+import { toast } from '@/utils/notify';
+import { teamApi } from '@/api';
+import { formatCurrency, formatDate } from '@/utils/format';
+import { ageOn } from '@/utils/validation';
 
 interface Account {
   account_id: number;
@@ -47,7 +49,7 @@ const CustomerAccounts: React.FC = () => {
   const fetchAccounts = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('/api/manager/accounts');
+      const response = await teamApi.branchAccounts();
       setAccounts(response.data.accounts);
       setSummary(response.data.summary);
     } catch (error) {
@@ -58,31 +60,8 @@ const CustomerAccounts: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-LK', {
-      style: 'currency',
-      currency: 'LKR'
-    }).format(amount);
-  };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
-  const calculateAge = (dateOfBirth: string): number => {
-    const dob = new Date(dateOfBirth);
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   const getStatusBadgeClass = (status: string): string => {
     switch (status.toLowerCase()) {
@@ -366,7 +345,7 @@ const CustomerAccounts: React.FC = () => {
                       <div className="customer-details">
                         <div className="detail-item">
                           <span className="detail-label">Age:</span>
-                          <span>{calculateAge(account.date_of_birth)} years</span>
+                          <span>{ageOn(account.date_of_birth)} years</span>
                         </div>
                         <div className="detail-item">
                           <span className="detail-label">Gender:</span>

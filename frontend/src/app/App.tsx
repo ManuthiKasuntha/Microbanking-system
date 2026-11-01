@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import './api/client';
-import Dashboard from './components/Dashboard';
-import LoginRegister from './components/LoginRegister';
-import ProtectedRoute from './components/ProtectedRoute';
-import Toaster from './components/ui/Toaster';
-import ConfirmDialog from './components/ui/ConfirmDialog';
-import './App.css';
-import './components/ui/ui.css';
+import Dashboard from '@/features/dashboard/Dashboard';
+import LoginPage from '@/features/auth/LoginPage';
+import ProtectedRoute from '@/features/auth/ProtectedRoute';
+import { hasValidSession } from '@/features/auth/session';
+import Toaster from '@/components/ui/Toaster';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import '@/styles/app.css';
+import '@/styles/ui.css';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(hasValidSession);
 
   return (
     <Router>
@@ -21,7 +21,7 @@ function App() {
             isAuthenticated ? (
               <Navigate to="/dashboard" replace />
             ) : (
-              <LoginRegister onLoginSuccess={() => setIsAuthenticated(true)} />
+              <LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />
             )
           }
         />
