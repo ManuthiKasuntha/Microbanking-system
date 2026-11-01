@@ -1,0 +1,142 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend · lint and tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      TEST_PGDATABASE: microbanking_test
+      TEST_PGHOST: localhost
+      TEST_PGPORT: 5432
+      TEST_PGUSER: postgres
+      TEST_PGPASSWORD: postgres
+      JWT_SECRET: ci-test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Create test database from the schema scripts
+        run: psql -h localhost -U postgres -v dbname=microbanking_test -f ../database/setup.sql
+        env:
+          PGPASSWORD: postgres
+      - run: npm ci
+      - run: npm run lint
+      - name: Unit and integration tests
+        run: npm test
+
+  frontend:
+    name: Frontend · lint, typecheck, tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:run
+      - run: npm run build
+
+  docker:
+    name: Docker image · ${{ matrix.service }}
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    env:
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.service }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+      - name: Build (and publish on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  smoke-test:
+    name: Smoke test · full stack with docker compose
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-smoke-secret
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start database, API and frontend
+        run: docker compose up --build --detach --wait --wait-timeout 300
+      - name: Frontend serves the app
+        run: curl --fail --silent http://localhost:8080/ | grep -q '<div id="root">'
+      - name: Client-side routes fall back to index.html
+        run: curl --fail --silent http://localhost:8080/dashboard | grep -q '<div id="root">'
+      - name: API is reachable through the nginx proxy
+        run: curl --fail --silent http://localhost:8080/api/health | grep -q '"status":"success"'
+      - name: Admin can log in
+        run: |
+          curl --fail --silent -X POST http://localhost:8080/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"admin123"}' | grep -q '"token"'
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes
