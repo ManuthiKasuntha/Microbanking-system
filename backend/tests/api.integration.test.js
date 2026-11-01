@@ -16,9 +16,9 @@ if (!skip) {
 }
 require('./helpers');
 const request = require('supertest');
-const app = require('../app');
-const pool = require('../config/database');
-const { processDailySavingsInterest } = require('../services/interest');
+const app = require('../src/app');
+const { pool } = require('../src/db/pool');
+const { processDailySavingsInterest } = require('../src/services/interest.service');
 
 const unique = Date.now().toString().slice(-8);
 const randomNic = () => `19${Math.floor(Math.random() * 1e10).toString().padStart(10, '0')}`;

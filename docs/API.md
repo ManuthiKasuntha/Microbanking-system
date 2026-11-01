@@ -103,5 +103,5 @@ Every write endpoint is validated twice: by `express-validator` rules in
 | GET | `/api/manager/team/agents/:agentId/transactions` | One agent's transactions |
 | GET | `/api/manager/transactions?start&end` | Branch transactions and totals |
 
-The Postman collection in [`backend/postman-collection.json`](../backend/postman-collection.json) covers the
+The Postman collection in [`docs/postman-collection.json`](postman-collection.json) covers the
 original endpoints
