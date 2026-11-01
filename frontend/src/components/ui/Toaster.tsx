@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { subscribeToToasts, ToastMessage } from '../../utils/notify';
+import { subscribeToToasts, ToastMessage } from '@/utils/notify';
 
 const DISPLAY_MS = { success: 4000, info: 4000, error: 7000 };
 const ICONS = { success: '✓', error: '!', info: 'i' };

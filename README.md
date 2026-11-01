@@ -59,15 +59,28 @@ transactions, plan changes and customer edits. Rules that protect money are enfo
 │ Role dashboards     │ ─────────────▶ │ helmet · CORS · rate lim │ ──────▶ │ tables + constraints │
 │ Client validation   │   JWT bearer   │ JWT auth → role check    │         │ triggers (balance,   │
 │ Toasts / dialogs    │ ◀───────────── │ express-validator        │ ◀────── │ audit, min age, FD)  │
-│ Lazy-loaded views   │                │ controllers → SQL        │         │ PL/pgSQL functions   │
+│ Lazy-loaded views   │                │ controllers → services   │         │ PL/pgSQL functions   │
 └─────────────────────┘                │ node-cron interest jobs  │         │ reporting views      │
                                        └──────────────────────────┘         └──────────────────────┘
 ```
 
 Each request passes through security middleware, JWT verification, a role check and input validation before a
-controller runs parameterised SQL. Money movements go through database functions inside a transaction, so a
-rule violation rolls everything back. Database errors are mapped to clear HTTP responses in
-[`backend/utils/dbError.js`](backend/utils/dbError.js). The full endpoint list is in [docs/API.md](docs/API.md).
+controller hands it to a service, which runs parameterised SQL. Money movements go through database functions
+inside a transaction, so a rule violation rolls everything back. The full endpoint list is in
+[docs/API.md](docs/API.md).
+
+### Design decisions
+
+| Decision | Where | Why |
+|----------|-------|-----|
+| **Layered backend**: routes → validators → controllers → services → database | `backend/src/` | Each layer has one job (single responsibility). Controllers only translate HTTP; business rules live in services, so they can be tested and reused without Express |
+| **One error path**: services throw `AppError` (`badRequest`, `notFound`, …); one middleware turns it, or any PostgreSQL error, into a JSON response | [`errorHandler.js`](backend/src/middleware/errorHandler.js), [`pgErrors.js`](backend/src/errors/pgErrors.js) | Removes ~48 repeated `try/catch` blocks; error responses are consistent everywhere |
+| **`withTransaction()` helper** for BEGIN/COMMIT/ROLLBACK | [`db/index.js`](backend/src/db/index.js) | A thrown error always rolls back and releases the connection, so no handler can leak a client |
+| **Centralised config** read from environment variables | [`config/env.js`](backend/src/config/env.js) | One place for defaults; the interest schedule and the admin screens share the same values |
+| **Strategy objects** for FD vs savings interest | [`interest.service.js`](backend/src/services/interest.service.js) | One batch runner (with per-credit savepoints) handles both; a new interest type only adds a strategy (open/closed) |
+| **Feature folders** in the frontend, mirroring backend domains | `frontend/src/features/` | Code for a feature (screen, modal, helpers) lives together and is easy to find |
+| **API layer**: components never build URLs or import axios | [`frontend/src/api/`](frontend/src/api/index.ts) | Swapping or mocking the backend touches one folder (dependency inversion) |
+| **Shared building blocks** | `utils/format.ts`, `utils/validation.ts`, `hooks/usePersistentState.ts`, `features/auth/session.ts` | Replaced 20 copies of currency/date/age helpers and 6 copies of saved-tab logic (DRY) |
 
 ## Getting started
 
@@ -210,28 +223,37 @@ and as [DBML for dbdiagram.io](docs/database/schema.dbml). Details and the data 
 ```
 microbanking/
 ├── backend/
-│   ├── app.js                 Express app: security middleware, routes, error handling
-│   ├── index.js               Server start-up, DB check, interest schedulers
-│   ├── config/database.js     PostgreSQL connection pool
-│   ├── routes/                URL → validation → controller, one file per role
-│   ├── middleware/            JWT auth + role check, request validation rules
-│   ├── controllers/           Request handlers (parameterised SQL)
-│   ├── services/interest.js   FD and savings interest processing
-│   ├── schedulers/            node-cron jobs
-│   ├── utils/dbError.js       PostgreSQL error → HTTP response mapping
-│   ├── scripts/seed-demo.js   Demo data loader
-│   └── tests/                 node:test + supertest suites
+│   ├── src/
+│   │   ├── server.js            Start-up: config check, DB connection, interest schedulers, graceful shutdown
+│   │   ├── app.js               Express app: security middleware, /api routes, error handling
+│   │   ├── config/env.js        All environment settings and their defaults
+│   │   ├── db/                  Connection pool, query and withTransaction helpers
+│   │   ├── routes/              URL → validation → controller, one file per role
+│   │   ├── validators/          express-validator rules (shared field rules in common.js)
+│   │   ├── controllers/         HTTP in/out only, one file per domain
+│   │   ├── services/            Business rules and SQL, one file per domain
+│   │   ├── middleware/          JWT auth + role check, rate limiting, error handler
+│   │   ├── errors/              AppError and PostgreSQL error mapping
+│   │   ├── jobs/                node-cron interest schedulers
+│   │   └── utils/               asyncHandler, response helpers
+│   ├── scripts/                 Demo data seeder, password hash helper
+│   └── tests/                   node:test + supertest suites
 ├── frontend/
 │   └── src/
-│       ├── api/client.ts      Axios setup: auth header, session expiry, error messages
-│       ├── components/        Role dashboards and feature screens (lazy-loaded)
-│       ├── components/ui/     Toasts, confirm dialog, error boundary
-│       └── utils/             Shared validation rules, notification bus (+ tests)
-├── database/                  setup.sql, schema, seed data
-├── docker/initdb.sh           Creates the database when the Postgres container first starts
-├── docker-compose.yml         Database + API + nginx frontend in one command
-├── .github/                   CI/CD workflow and Dependabot configuration
-└── docs/                      API reference, database design + ERD, screenshots, project report
+│       ├── main.tsx             Entry point
+│       ├── app/                 Router and app shell (+ render test)
+│       ├── api/                 HTTP client and one API object per backend domain
+│       ├── features/            auth, dashboard, customers, accounts, transactions, fixed-deposits,
+│       │                        employees, branches, reports, interest
+│       ├── components/          Shared UI: toasts, confirm dialog, error boundary, footer
+│       ├── hooks/               usePersistentState
+│       ├── utils/               Validation rules, formatting, notification bus (+ tests)
+│       └── styles/              Global styles
+├── database/                    setup.sql, schema, seed data
+├── docker/initdb.sh             Creates the database when the Postgres container first starts
+├── docker-compose.yml           Database + API + nginx frontend in one command
+├── .github/                     CI/CD workflow and Dependabot configuration
+└── docs/                        API reference, Postman collection, database design + ERD, screenshots, report
 ```
 
 ## Security

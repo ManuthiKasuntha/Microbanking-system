@@ -3,8 +3,8 @@ const { test, describe, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { tokenFor } = require('./helpers');
 const request = require('supertest');
-const app = require('../app');
-const pool = require('../config/database');
+const app = require('../src/app');
+const { pool } = require('../src/db/pool');
 
 after(() => pool.end());
 

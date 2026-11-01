@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ConfirmRequest, subscribeToConfirms } from '../../utils/notify';
+import { ConfirmRequest, subscribeToConfirms } from '@/utils/notify';
 
 const ConfirmDialog: React.FC = () => {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);

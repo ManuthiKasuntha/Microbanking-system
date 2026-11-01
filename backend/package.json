@@ -2,13 +2,14 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "B-Trust Microbanking System - REST API",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "test": "node --test \"tests/*.test.js\"",
+    "lint": "eslint .",
     "seed:demo": "node scripts/seed-demo.js",
-    "lint": "eslint ."
+    "hash-password": "node scripts/hash-password.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
