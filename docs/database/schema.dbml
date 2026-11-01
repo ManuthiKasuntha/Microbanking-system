@@ -1,0 +1,226 @@
+// Microbanking System - paste into https://dbdiagram.io to view and edit the ERD
+
+Enum gender_type {
+  "Male"
+  "Female"
+  "Other"
+}
+
+Enum contact_type {
+  "customer"
+  "employee"
+  "branch"
+}
+
+Enum account_status_type {
+  "Active"
+  "Closed"
+}
+
+Enum plan_type {
+  "Children"
+  "Teen"
+  "Adult"
+  "Senior"
+  "Joint"
+}
+
+Enum auto_renewal_status_type {
+  "True"
+  "False"
+}
+
+Enum fd_status_type {
+  "Active"
+  "Matured"
+  "Closed"
+}
+
+Enum employee_role {
+  "Manager"
+  "Agent"
+  "Admin"
+}
+
+Enum employee_status_type {
+  "Active"
+  "Inactive"
+}
+
+Enum fd_options_type {
+  "6 months"
+  "1 year"
+  "3 years"
+}
+
+Enum transaction_type {
+  "Deposit"
+  "Withdrawal"
+  "Interest"
+}
+
+Table contact {
+  contact_id integer [pk, increment]
+  type contact_type [not null]
+  contact_no_1 varchar(15)
+  contact_no_2 varchar(15)
+  address varchar(100)
+  email varchar(50)
+  created_at timestamp
+}
+
+Table branch {
+  branch_id integer [pk, increment]
+  name varchar(50) [not null]
+  contact_id integer [ref: > contact.contact_id, not null]
+  created_at timestamp
+}
+
+Table employee {
+  employee_id integer [pk, increment]
+  role employee_role [not null]
+  username varchar(20) [not null, unique]
+  password varchar(255) [not null]
+  first_name varchar(50) [not null]
+  last_name varchar(50) [not null]
+  nic varchar(30) [not null]
+  gender gender_type [not null]
+  date_of_birth date [not null]
+  branch_id integer [ref: > branch.branch_id, not null]
+  contact_id integer [ref: > contact.contact_id, not null]
+  employee_status employee_status_type [not null]
+  created_at timestamp
+}
+
+Table customer {
+  customer_id integer [pk, increment]
+  first_name varchar(50) [not null]
+  last_name varchar(50) [not null]
+  gender gender_type [not null]
+  nic varchar(30) [not null]
+  date_of_birth date [not null]
+  contact_id integer [ref: > contact.contact_id, not null]
+  created_at timestamp
+}
+
+Table takes {
+  takes_id integer [pk, increment]
+  customer_id integer [ref: > customer.customer_id, not null]
+  account_id integer [ref: > account.account_id, not null]
+  created_at timestamp
+
+  indexes {
+    (customer_id, account_id) [unique]
+  }
+}
+
+Table account {
+  account_id integer [pk, increment]
+  open_date date [not null]
+  account_status account_status_type [not null]
+  balance decimal [not null]
+  saving_plan_id integer [ref: > savingplan.saving_plan_id]
+  fd_id integer [ref: > fixeddeposit.fd_id, unique]
+  branch_id integer [ref: > branch.branch_id, not null]
+  closed_at timestamp
+  created_at timestamp
+}
+
+Table savingplan {
+  saving_plan_id integer [pk, increment]
+  plan_type plan_type [not null, unique]
+  interest decimal [not null]
+  min_balance decimal [not null]
+  created_at timestamp
+}
+
+Table fixeddeposit {
+  fd_id integer [pk, increment]
+  fd_balance decimal [not null]
+  auto_renewal_status auto_renewal_status_type [not null]
+  fd_status fd_status_type [not null]
+  open_date date [not null]
+  maturity_date date [not null]
+  fd_plan_id integer [ref: > fdplan.fd_plan_id, not null]
+  created_at timestamp
+}
+
+Table fdplan {
+  fd_plan_id integer [pk, increment]
+  fd_options fd_options_type [not null, unique]
+  interest decimal [not null]
+  created_at timestamp
+}
+
+Table transaction {
+  transaction_id integer [pk, increment]
+  transaction_type transaction_type [not null]
+  amount decimal [not null]
+  time timestamp [not null]
+  description varchar(100)
+  account_id integer [ref: > account.account_id, not null]
+  employee_id integer [ref: > employee.employee_id, not null]
+  created_at timestamp
+}
+
+Table fd_interest_calculations {
+  id integer [pk, increment]
+  fd_id integer [ref: > fixeddeposit.fd_id, not null]
+  calculation_date date [not null]
+  interest_amount decimal [not null]
+  days_in_period integer [not null]
+  credited_to_account_id integer [ref: > account.account_id, not null]
+  credited_at timestamp
+  status varchar(20)
+  created_at timestamp
+}
+
+Table savings_interest_calculations {
+  id integer [pk, increment]
+  account_id integer [ref: > account.account_id, not null]
+  calculation_date date [not null]
+  interest_amount decimal [not null]
+  interest_rate decimal [not null]
+  plan_type varchar(20) [not null]
+  credited_at timestamp
+  status varchar(20)
+  created_at timestamp
+}
+
+Table account_plan_change_audit {
+  audit_id integer [pk, increment]
+  account_id integer [ref: > account.account_id, not null]
+  old_saving_plan_id integer [ref: > savingplan.saving_plan_id, not null]
+  new_saving_plan_id integer [ref: > savingplan.saving_plan_id, not null]
+  reason text
+  changed_by_employee_id integer [ref: > employee.employee_id]
+  changed_at timestamp
+}
+
+Table customer_audit_log {
+  audit_id integer [pk, increment]
+  customer_id integer [not null]
+  changed_by_employee_id integer
+  changed_at timestamp
+  changed_fields text[]
+  old_data jsonb
+  new_data jsonb
+}
+
+Table transaction_audit_log {
+  audit_id integer [pk, increment]
+  transaction_type transaction_type
+  amount decimal
+  attempted_time timestamp
+  description varchar(100)
+  account_id integer
+  employee_id integer
+  status varchar(20) [not null]
+  error_message text
+  created_at timestamp
+}
+
+// logical, not enforced: customer_audit_log.customer_id -> customer
+// logical, not enforced: customer_audit_log.changed_by_employee_id -> employee
+// logical, not enforced: transaction_audit_log.account_id -> account
+// logical, not enforced: transaction_audit_log.employee_id -> employee
