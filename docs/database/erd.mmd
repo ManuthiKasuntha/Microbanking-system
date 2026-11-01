@@ -1,0 +1,167 @@
+erDiagram
+    CONTACT {
+        int contact_id PK
+        contact_type type "not null"
+        varchar15 contact_no_1
+        varchar15 contact_no_2
+        varchar100 address
+        varchar50 email
+        timestamp created_at
+    }
+    BRANCH {
+        int branch_id PK
+        varchar50 name "not null"
+        int contact_id FK "not null"
+        timestamp created_at
+    }
+    EMPLOYEE {
+        int employee_id PK
+        employee_role role "not null"
+        varchar20 username UK "not null"
+        varchar255 password "not null"
+        varchar50 first_name "not null"
+        varchar50 last_name "not null"
+        varchar30 nic "not null"
+        gender_type gender "not null"
+        date date_of_birth "not null"
+        int branch_id FK "not null"
+        int contact_id FK "not null"
+        employee_status_type employee_status "not null"
+        timestamp created_at
+    }
+    CUSTOMER {
+        int customer_id PK
+        varchar50 first_name "not null"
+        varchar50 last_name "not null"
+        gender_type gender "not null"
+        varchar30 nic "not null"
+        date date_of_birth "not null"
+        int contact_id FK "not null"
+        timestamp created_at
+    }
+    TAKES {
+        int takes_id PK
+        int customer_id FK, UK "not null"
+        int account_id FK, UK "not null"
+        timestamp created_at
+    }
+    ACCOUNT {
+        int account_id PK
+        date open_date "not null"
+        account_status_type account_status "not null"
+        decimal balance "not null"
+        int saving_plan_id FK
+        int fd_id FK, UK
+        int branch_id FK "not null"
+        timestamp closed_at
+        timestamp created_at
+    }
+    SAVINGPLAN {
+        int saving_plan_id PK
+        plan_type plan_type UK "not null"
+        decimal interest "not null"
+        decimal min_balance "not null"
+        timestamp created_at
+    }
+    FIXEDDEPOSIT {
+        int fd_id PK
+        decimal fd_balance "not null"
+        auto_renewal_status_type auto_renewal_status "not null"
+        fd_status_type fd_status "not null"
+        date open_date "not null"
+        date maturity_date "not null"
+        int fd_plan_id FK "not null"
+        timestamp created_at
+    }
+    FDPLAN {
+        int fd_plan_id PK
+        fd_options_type fd_options UK "not null"
+        decimal interest "not null"
+        timestamp created_at
+    }
+    TRANSACTION {
+        int transaction_id PK
+        transaction_type transaction_type "not null"
+        decimal amount "not null"
+        timestamp time "not null"
+        varchar100 description
+        int account_id FK "not null"
+        int employee_id FK "not null"
+        timestamp created_at
+    }
+    FD_INTEREST_CALCULATIONS {
+        int id PK
+        int fd_id FK "not null"
+        date calculation_date "not null"
+        decimal interest_amount "not null"
+        int days_in_period "not null"
+        int credited_to_account_id FK "not null"
+        timestamp credited_at
+        varchar20 status
+        timestamp created_at
+    }
+    SAVINGS_INTEREST_CALCULATIONS {
+        int id PK
+        int account_id FK "not null"
+        date calculation_date "not null"
+        decimal interest_amount "not null"
+        decimal interest_rate "not null"
+        varchar20 plan_type "not null"
+        timestamp credited_at
+        varchar20 status
+        timestamp created_at
+    }
+    ACCOUNT_PLAN_CHANGE_AUDIT {
+        int audit_id PK
+        int account_id FK "not null"
+        int old_saving_plan_id FK "not null"
+        int new_saving_plan_id FK "not null"
+        text reason
+        int changed_by_employee_id FK
+        timestamp changed_at
+    }
+    CUSTOMER_AUDIT_LOG {
+        int audit_id PK
+        int customer_id "not null"
+        int changed_by_employee_id
+        timestamp changed_at
+        text_array changed_fields
+        jsonb old_data
+        jsonb new_data
+    }
+    TRANSACTION_AUDIT_LOG {
+        int audit_id PK
+        transaction_type transaction_type
+        decimal amount
+        timestamp attempted_time
+        varchar100 description
+        int account_id
+        int employee_id
+        varchar20 status "not null"
+        text error_message
+        timestamp created_at
+    }
+
+    SAVINGPLAN |o--o{ ACCOUNT : "saving plan"
+    FIXEDDEPOSIT |o--o| ACCOUNT : "fd"
+    BRANCH ||--o{ ACCOUNT : "branch"
+    ACCOUNT ||--o{ ACCOUNT_PLAN_CHANGE_AUDIT : "account"
+    SAVINGPLAN ||--o{ ACCOUNT_PLAN_CHANGE_AUDIT : "old saving plan"
+    SAVINGPLAN ||--o{ ACCOUNT_PLAN_CHANGE_AUDIT : "new saving plan"
+    EMPLOYEE |o--o{ ACCOUNT_PLAN_CHANGE_AUDIT : "changed by employee"
+    CONTACT ||--o| BRANCH : "contact"
+    CONTACT ||--o| CUSTOMER : "contact"
+    BRANCH ||--o{ EMPLOYEE : "branch"
+    CONTACT ||--o| EMPLOYEE : "contact"
+    FIXEDDEPOSIT ||--o{ FD_INTEREST_CALCULATIONS : "fd"
+    ACCOUNT ||--o{ FD_INTEREST_CALCULATIONS : "credited to account"
+    FDPLAN ||--o{ FIXEDDEPOSIT : "fd plan"
+    ACCOUNT ||--o{ SAVINGS_INTEREST_CALCULATIONS : "account"
+    CUSTOMER ||--o{ TAKES : "customer"
+    ACCOUNT ||--|{ TAKES : "account"
+    ACCOUNT ||--o{ TRANSACTION : "account"
+    EMPLOYEE ||--o{ TRANSACTION : "employee"
+    CUSTOMER ||..o{ CUSTOMER_AUDIT_LOG : "customer (logical)"
+    EMPLOYEE ||..o{ CUSTOMER_AUDIT_LOG : "changed by employee (logical)"
+    ACCOUNT ||..o{ TRANSACTION_AUDIT_LOG : "account (logical)"
+    EMPLOYEE ||..o{ TRANSACTION_AUDIT_LOG : "employee (logical)"
