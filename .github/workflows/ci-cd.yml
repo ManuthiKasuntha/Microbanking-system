@@ -40,7 +40,7 @@ jobs:
       TEST_PGPASSWORD: postgres
       JWT_SECRET: ci-test-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -62,7 +62,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -87,7 +87,7 @@ jobs:
     env:
       PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Log in to GitHub Container Registry
         if: env.PUBLISH == 'true'
@@ -120,7 +120,7 @@ jobs:
     env:
       JWT_SECRET: ci-smoke-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Start database, API and frontend
         run: docker compose up --build --detach --wait --wait-timeout 300
       - name: Frontend serves the app
